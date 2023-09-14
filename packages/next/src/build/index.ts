@@ -71,6 +71,7 @@ import {
   SERVER_REFERENCE_MANIFEST,
   FUNCTIONS_CONFIG_MANIFEST,
 } from '../shared/lib/constants'
+import EventEmitter from 'events'
 import { getSortedRoutes, isDynamicRoute } from '../shared/lib/router/utils'
 import { __ApiPreviewProps } from '../server/api-utils'
 import loadConfig from '../server/config'
@@ -144,6 +145,7 @@ import { buildDataRoute } from '../server/lib/router-utils/build-data-route'
 import { baseOverrides, experimentalOverrides } from '../server/require-hook'
 import { initialize } from '../server/lib/incremental-cache-server'
 import { nodeFs } from '../server/lib/node-fs-methods'
+import { createTurborepoConfig } from './turborepo/output'
 
 export type SsgRoute = {
   initialRevalidateSeconds: number | false
@@ -266,6 +268,26 @@ function pageToRoute(page: string) {
   }
 }
 
+const envEmitter = new EventEmitter()
+
+function proxiedEnv() {
+  const newEnv = new Proxy(process.env, {
+    get: (target, key) => {
+      envEmitter.emit('envAccessed', key)
+      return target[key as string]
+    },
+    getOwnPropertyDescriptor(target, key) {
+      return { configurable: true, enumerable: true }
+    },
+    set: (target, key, value) => {
+      target[key as string] = value
+      return true
+    },
+  })
+
+  process.env = newEnv
+}
+
 export default async function build(
   dir: string,
   reactProductionProfiling = false,
@@ -279,6 +301,17 @@ export default async function build(
 ): Promise<void> {
   const isCompile = buildMode === 'experimental-compile'
   const isGenerate = buildMode === 'experimental-generate'
+
+  // init process.env proxy
+  proxiedEnv()
+
+  // track accessed env vars
+  const accessedVars = new Set<string>([])
+
+  // watch env vars that are accessed
+  envEmitter.on('envAccessed', (key: string) => {
+    accessedVars.add(key)
+  })
 
   let hasAppDir = false
   try {
@@ -3280,6 +3313,9 @@ export default async function build(
         .traceChild('telemetry-flush')
         .traceAsyncFn(() => telemetry.flush())
     })
+
+    await createTurborepoConfig(NextBuildContext, { env: accessedVars })
+
     return buildResult
   } finally {
     // Ensure we wait for lockfile patching if present

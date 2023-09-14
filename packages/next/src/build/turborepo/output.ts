@@ -4,7 +4,8 @@ import * as Log from '../output/log'
 import { NextBuildContext } from '../build-context'
 
 export async function createTurborepoConfig(
-  context: typeof NextBuildContext
+  context: typeof NextBuildContext,
+  opts: { env: Set<string> }
 ): Promise<void> {
   if (!process.env.TURBO_MANIFEST_DIR) {
     return undefined
@@ -22,12 +23,19 @@ export async function createTurborepoConfig(
   )
   const relativeOutputDirectory = path.relative(context.dir, outputDirectory)
 
+  Object.keys(NextBuildContext.config?.env ?? {}).forEach((key) => {
+    // remove unused keys
+    if (!opts.env.has(key)) {
+      opts.env.delete(key)
+    }
+  })
+
   // create turbo workspace config
   const turboWorkspaceConfig = {
     extends: ['//'],
     pipeline: {
       build: {
-        env: Object.keys(NextBuildContext.config?.env ?? {}),
+        env: Array.from(opts.env),
         outputs: [
           path.join(relativeOutputDirectory, '/**'),
           // exclude next cache
