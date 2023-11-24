@@ -101,7 +101,7 @@ import { generateBuildId } from './generate-build-id'
 import { isWriteable } from './is-writeable'
 import * as Log from './output/log'
 import createSpinner from './spinner'
-import { trace, flushAllTraces, setGlobal } from '../trace'
+import { trace, flushAllTraces, setGlobal, type Span } from '../trace'
 import {
   detectConflictingPaths,
   computeFromManifest,
@@ -155,6 +155,7 @@ import { collectBuildTraces } from './collect-build-traces'
 import type { BuildTraceContext } from './webpack/plugins/next-trace-entrypoints-plugin'
 import { formatManifest } from './manifests/formatter/format-manifest'
 import { getStartServerInfo, logStartInfo } from '../server/lib/app-info-log'
+import { type AccessTrace, traceAccessForAsyncFn } from './with-mock'
 
 interface ExperimentalBypassForInfo {
   experimentalBypassFor?: RouteHas[]
@@ -368,13 +369,36 @@ export default async function build(
         .traceFn(() => loadEnvConfig(dir, false, Log))
       NextBuildContext.loadedEnvFiles = loadedEnvFiles
 
+      const configTraceFile = process.env.TURBO_CONFIG_TRACE_FILE
+      const accessTrace =
+        configTraceFile === undefined
+          ? (f: () => Promise<NextConfigComplete>) => f()
+          : async (f: () => Promise<NextConfigComplete>) => {
+              const [config, configTrace]: [NextConfigComplete, AccessTrace] =
+                await traceAccessForAsyncFn(f)
+
+              await fs.writeFile(
+                configTraceFile,
+                JSON.stringify({
+                  outputs: [
+                    `${config.distDir}/**`,
+                    `!${config.distDir}/cache/**`,
+                  ],
+                  access: configTrace,
+                })
+              )
+              return config
+            }
+
       const config: NextConfigComplete = await nextBuildSpan
         .traceChild('load-next-config')
         .traceAsyncFn(() =>
-          loadConfig(PHASE_PRODUCTION_BUILD, dir, {
-            // Log for next.config loading process
-            silent: false,
-          })
+          accessTrace(() =>
+            loadConfig(PHASE_PRODUCTION_BUILD, dir, {
+              // Log for next.config loading process
+              silent: false,
+            })
+          )
         )
 
       process.env.NEXT_DEPLOYMENT_ID = config.experimental.deploymentId || ''
@@ -1361,7 +1385,10 @@ export default async function build(
 
         const { configFileName, publicRuntimeConfig, serverRuntimeConfig } =
           config
-        const runtimeEnvConfig = { publicRuntimeConfig, serverRuntimeConfig }
+        const runtimeEnvConfig = {
+          publicRuntimeConfig,
+          serverRuntimeConfig,
+        }
 
         const nonStaticErrorPageSpan = staticCheckSpan.traceChild(
           'check-static-error-page'
@@ -2665,7 +2692,10 @@ export default async function build(
           }
 
           // remove temporary export folder
-          await fs.rm(exportOptions.outdir, { recursive: true, force: true })
+          await fs.rm(exportOptions.outdir, {
+            recursive: true,
+            force: true,
+          })
           await fs.writeFile(
             manifestPath,
             formatManifest(pagesManifest),

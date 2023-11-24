@@ -92,6 +92,7 @@
     ]
   },
   "dependencies": {
+    "@mswjs/interceptors": "0.25.7",
     "@next/env": "14.0.1-canary.3",
     "@swc/helpers": "0.5.2",
     "busboy": "1.6.0",
@@ -143,7 +144,6 @@
     "@hapi/accept": "5.0.2",
     "@jest/transform": "29.5.0",
     "@jest/types": "29.5.0",
-    "@mswjs/interceptors": "0.23.0",
     "@napi-rs/cli": "2.16.2",
     "@napi-rs/triples": "1.1.0",
     "@next/polyfill-module": "14.0.1-canary.3",
