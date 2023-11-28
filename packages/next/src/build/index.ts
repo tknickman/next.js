@@ -155,7 +155,11 @@ import { collectBuildTraces } from './collect-build-traces'
 import type { BuildTraceContext } from './webpack/plugins/next-trace-entrypoints-plugin'
 import { formatManifest } from './manifests/formatter/format-manifest'
 import { getStartServerInfo, logStartInfo } from '../server/lib/app-info-log'
-import { type AccessTrace, traceAccessForAsyncFn } from './with-mock'
+import {
+  type AccessTrace,
+  traceAccessForAsyncFn,
+  mergeTraceResults,
+} from './with-mock'
 
 interface ExperimentalBypassForInfo {
   experimentalBypassFor?: RouteHas[]
@@ -369,6 +373,8 @@ export default async function build(
         .traceFn(() => loadEnvConfig(dir, false, Log))
       NextBuildContext.loadedEnvFiles = loadedEnvFiles
 
+      let configLoadTrace: AccessTrace | undefined = undefined
+
       const configTraceFile = process.env.TURBO_CONFIG_TRACE_FILE
       const accessTrace =
         configTraceFile === undefined
@@ -377,16 +383,7 @@ export default async function build(
               const [config, configTrace]: [NextConfigComplete, AccessTrace] =
                 await traceAccessForAsyncFn(f)
 
-              await fs.writeFile(
-                configTraceFile,
-                JSON.stringify({
-                  outputs: [
-                    `${config.distDir}/**`,
-                    `!${config.distDir}/cache/**`,
-                  ],
-                  access: configTrace,
-                })
-              )
+              configLoadTrace = configTrace
               return config
             }
 
@@ -2215,6 +2212,7 @@ export default async function build(
             silent: false,
             buildExport: true,
             debugOutput,
+            exportTraceEnabled: !!configTraceFile,
             threads: config.experimental.cpus,
             pages: combinedPages,
             outdir: path.join(distDir, 'export'),
@@ -2237,6 +2235,23 @@ export default async function build(
 
           // If there was no result, there's nothing more to do.
           if (!exportResult) return
+
+          // merge the traces, and write the file
+          if (configTraceFile && configLoadTrace) {
+            await fs.writeFile(
+              configTraceFile,
+              JSON.stringify({
+                outputs: [
+                  `${config.distDir}/**`,
+                  `!${config.distDir}/cache/**`,
+                ],
+                access: mergeTraceResults(
+                  configLoadTrace,
+                  exportResult.exportTrace
+                ),
+              })
+            )
+          }
 
           ssgNotFoundPaths = Array.from(exportResult.ssgNotFoundPaths)
 

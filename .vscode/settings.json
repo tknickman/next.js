@@ -77,5 +77,10 @@
       "scheme": "file"
     }
   ],
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "workbench.colorCustomizations": {
+    "activityBar.background": "#0A3600",
+    "titleBar.activeBackground": "#0E4B00",
+    "titleBar.activeForeground": "#ECFFE8"
+  }
 }

@@ -33,6 +33,7 @@ import { exportPages } from './routes/pages'
 import { getParams } from './helpers/get-params'
 import { createIncrementalCache } from './helpers/create-incremental-cache'
 import { isPostpone } from '../server/lib/router-utils/is-postpone'
+import { type AccessTrace, traceAccessForAsyncFn } from '../build/with-mock'
 
 const envConfig = require('../shared/lib/runtime-config.external')
 
@@ -337,10 +338,24 @@ export default async function exportPage(
 
   const start = Date.now()
 
+  let traceResult: AccessTrace | undefined = undefined
+
+  const accessTrace = !input.exportTraceEnabled
+    ? (f: () => Promise<ExportRouteResult | undefined>) => f()
+    : async (f: () => Promise<ExportRouteResult | undefined>) => {
+        const [result, workerTrace]: [
+          ExportRouteResult | undefined,
+          AccessTrace
+        ] = await traceAccessForAsyncFn(f)
+
+        if (result) {
+          traceResult = workerTrace
+        }
+        return result
+      }
+
   // Export the page.
-  const result = await exportPageSpan.traceAsyncFn(async () => {
-    return await exportPageImpl(input, baseFileWriter)
-  })
+  const result = await accessTrace(() => exportPageImpl(input, baseFileWriter))
 
   // If there was no result, then we can exit early.
   if (!result) return
@@ -360,6 +375,7 @@ export default async function exportPage(
     ssgNotFound: result.ssgNotFound,
     hasEmptyPrelude: result.hasEmptyPrelude,
     hasPostponed: result.hasPostponed,
+    traceResult,
   }
 }
 

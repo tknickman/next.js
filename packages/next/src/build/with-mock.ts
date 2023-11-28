@@ -182,3 +182,35 @@ export async function traceAccessForAsyncFn<T>(
   }
   return [result, trace]
 }
+
+export function mergeTraceResults(
+  configTrace: AccessTrace,
+  exportTrace: Map<string, AccessTrace>
+): AccessTrace {
+  // This is a dumb merge for now
+
+  const urls = new Set(configTrace.urls)
+  const addrs = new Set(configTrace.addrs)
+  const envVars = new Set(configTrace.envVars)
+  const readPaths = new Set(configTrace.paths.read)
+  const checkedPaths = new Set(configTrace.paths.checked)
+
+  // (we don't care about the path for now)
+  for (const [_, trace] of exportTrace) {
+    trace.urls.forEach((url) => urls.add(url))
+    trace.addrs.forEach((addr) => addrs.add(addr))
+    trace.envVars.forEach((envVar) => envVars.add(envVar))
+    trace.paths.read.forEach((path) => readPaths.add(path))
+    trace.paths.checked.forEach((path) => checkedPaths.add(path))
+  }
+
+  return {
+    urls: Array.from(urls),
+    addrs: Array.from(addrs),
+    envVars: Array.from(envVars),
+    paths: {
+      read: Array.from(readPaths),
+      checked: Array.from(checkedPaths),
+    },
+  }
+}

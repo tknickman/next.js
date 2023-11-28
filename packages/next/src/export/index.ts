@@ -698,6 +698,7 @@ export async function exportAppImpl(
           incrementalCacheHandlerPath:
             nextConfig.experimental.incrementalCacheHandlerPath,
           enableExperimentalReact: needsExperimentalReact(nextConfig),
+          exportTraceEnabled: options.exportTraceEnabled,
         })
       })
 
@@ -715,10 +716,15 @@ export async function exportAppImpl(
     byPath: new Map(),
     byPage: new Map(),
     ssgNotFoundPaths: new Set(),
+    exportTrace: new Map(),
   }
 
   for (const { result, path } of results) {
     if (!result) continue
+
+    if (result.traceResult) {
+      collector.exportTrace?.set(path, result.traceResult)
+    }
 
     const { page } = exportPathMap[path]
 

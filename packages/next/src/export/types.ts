@@ -8,6 +8,7 @@ import type { FontConfig } from '../server/font-utils'
 import type { ExportPathMap, NextConfigComplete } from '../server/config-shared'
 import type { Span } from '../trace'
 import type { Revalidate } from '../server/lib/revalidate'
+import type { AccessTrace } from '../build/with-mock'
 
 export interface AmpValidation {
   page: string
@@ -57,6 +58,7 @@ export interface ExportPageInput {
   fetchCacheKeyPrefix?: string
   nextConfigOutput?: NextConfigComplete['output']
   enableExperimentalReact?: boolean
+  exportTraceEnabled?: boolean
 }
 
 export type ExportedPageFile = {
@@ -82,6 +84,7 @@ export type ExportRouteResult =
 
 export type ExportPageResult = ExportRouteResult & {
   files: ExportedPageFile[]
+  traceResult?: AccessTrace
   duration: number
 }
 
@@ -103,6 +106,7 @@ export interface ExportAppOptions {
   debugOutput?: boolean
   pages?: string[]
   buildExport: boolean
+  exportTraceEnabled?: boolean
   statusMessage?: string
   exportPageWorker?: ExportWorker
   exportAppPageWorker?: ExportWorker
@@ -157,6 +161,8 @@ export type ExportAppResult = {
    * The paths that were not found during SSG.
    */
   ssgNotFoundPaths: Set<string>
+
+  exportTrace: Map<string, AccessTrace>
 }
 
 export type ExportAppWorker = (
