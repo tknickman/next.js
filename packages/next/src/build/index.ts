@@ -392,6 +392,22 @@ export default async function build(
           })
         )
 
+      // optionally write the fully loaded config to disk
+      const outputConfigLocation = process.env.NEXT_CONFIG_OUTPUT_DIR
+      if (outputConfigLocation) {
+        let fullOutputConfigLocation = outputConfigLocation
+        if (!outputConfigLocation.endsWith('.js')) {
+          fullOutputConfigLocation = path.join(
+            outputConfigLocation,
+            'next.config.js'
+          )
+        }
+        await fs.writeFile(
+          fullOutputConfigLocation,
+          JSON.stringify(config, null, 2)
+        )
+      }
+
       process.env.NEXT_DEPLOYMENT_ID = config.experimental.deploymentId || ''
       NextBuildContext.config = config
 
